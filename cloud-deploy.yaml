@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signin
+  namespace: ace-official
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: redirect
+  template:
+    metadata:
+      labels:
+        app: redirect
+    spec:
+      containers:
+        - name: nginx
+          image: quay.io/uface/spring-2020-gbm-1-redirect:1.0.0
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/usr/sbin/nginx","-s","quit"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signin
+  namespace: ace-official
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    app: redirect
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: signin
+  namespace: ace-official
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - ufacesign.in
+        - www.ufacesign.in
+      secretName: signin-tls
+  rules:
+    - host: ufacesign.in
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: signin
+              servicePort: 80
